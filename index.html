@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Congklak</title>
+
+<style>
+body{
+font-family:Poppins;
+background:linear-gradient(180deg,#bfa6e0,#f4b6d8);
+text-align:center;
+}
+
+h1{color:white}
+.info{color:white;font-size:20px}
+.turn{color:white;font-size:22px;margin-top:10px}
+
+.board-wrapper{display:flex;justify-content:center;align-items:center;gap:25px;margin-top:20px}
+.board{display:flex;flex-direction:column;gap:15px}
+.row{display:flex;gap:15px}
+
+/* small holes */
+.hole{
+width:90px;
+height:90px;
+border-radius:50%;
+padding:6px;
+box-sizing:border-box;
+background:#ffe5b4;
+
+display:flex;
+align-items:center;
+justify-content:center;
+
+font-size:26px;
+font-weight:bold;
+box-shadow:0 6px 14px rgba(0,0,0,.3);
+cursor:pointer;
+transition:.2s;
+}
+.hole:hover{transform:scale(1.1)}
+
+
+/* BIG stores (ovals) */
+.store{
+height:210px;
+width:100px;
+border-radius:50px;
+background:#ffb6c1;
+box-shadow:0 6px 14px rgba(0,0,0,.3);
+
+display:flex;
+flex-direction:column;        /* stack vertically */
+align-items:center;
+justify-content:flex-start;   /* move content to TOP */
+
+padding-top:6px;              /* space from top curve */
+}
+
+button{
+margin:8px;padding:10px 16px;border:none;border-radius:20px;
+background:#ff9bd2;color:white;font-weight:bold;cursor:pointer;
+}
+
+.popup{
+position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+background:white;padding:25px;border-radius:20px;display:none;
+width:300px;box-shadow:0 0 20px rgba(0,0,0,.3);
+}
+.footer{
+margin-top:30px;
+padding:20px;
+background:#a678d6;
+color:white;
+border-radius:25px 25px 0 0;
+}
+.storeStones{
+display:grid;
+grid-template-columns: repeat(5, 1fr);
+gap:3px;
+justify-items:center;
+align-items:start;
+font-size:10px;
+line-height:10px;
+width:100px;      /* was 70px */
+max-height:140px;
+overflow:hidden;
+}
+.celebrate{
+position:fixed;
+bottom:-40px;
+font-size:30px;
+animation: flyUp 2.5s linear forwards;
+pointer-events:none;
+}
+
+@keyframes flyUp{
+0%{ transform:translateY(0) rotate(0deg); opacity:1; }
+100%{ transform:translateY(-110vh) rotate(720deg); opacity:0; }
+}
+.stones{
+display:grid;
+grid-template-columns: repeat(4, 1fr);
+gap:3px;
+justify-items:center;
+align-items:center;
+font-size:12px;
+line-height:12px;
+width:70px;
+}
+.storeTop{
+font-size:26px;
+margin-bottom:4px;
+}
+.footer button{
+background:#ffb3e6;
+color:#6b2e83;
+margin:6px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🌸 Congklak Deluxe 🌸</h1>
+
+<div class="info">
+Level <span id="levelSpan"></span> |
+Coins Rp <span id="coinsSpan"></span> |
+Bet Rp <span id="betSpan">0</span>
+</div>
+
+<div class="turn">Turn: <span id="turnText">Player 1</span></div>
+
+<button onclick="setBet()">💰 Place Bet</button>
+<button onclick="showHow()">📖 How To Play</button>
+<button onclick="showTips()">🧠 Strategy</button>
+<button onclick="showBoard()">🏆 Leaderboard</button>
+
+<div class="board-wrapper">
+<div id="store2" class="store"></div>
+<div class="board">
+<div class="row" id="topRow"></div>
+<div class="row" id="bottomRow"></div>
+</div>
+<div id="store1" class="store"></div>
+</div>
+
+<button onclick="newGame()">New Match</button>
+<button onclick="toggleMode()">Mode: <span id="mode">2 Players</span></button>
+
+<!-- POPUPS -->
+<div id="popup" class="popup"></div>
+<div class="footer">
+
+<h3>🎮 Game Center</h3>
+
+<p>📞 Contact Us: 
+<a href="tel:+6237468919" style="color:white;font-weight:bold">
++62 3746 8919
+</a></p>
+
+<button onclick="donate()">💖 Donate to FundGame</button>
+<button onclick="showHelp()">🆘 Need Help?</button>
+<button onclick="refreshGame()">🔄 Refresh Game</button>
+<button onclick="resetProgress()">🧹 Reset Progress</button>
+
+</div>
+<script>
+let board,playerTurn,vsAI=false;
+let bet=0;
+
+let level=Number(localStorage.level)||1;
+let coins=Number(localStorage.coins)||100000;
+let leaderboard=JSON.parse(localStorage.leaderboard||"[]");
+
+function save(){
+localStorage.level=level;
+localStorage.coins=coins;
+localStorage.leaderboard=JSON.stringify(leaderboard);
+}
+
+function refreshUI(){
+levelSpan.innerText=level;
+coinsSpan.innerText=coins;
+betSpan.innerText=bet;
+}
+refreshUI();
+
+function toggleMode(){vsAI=!vsAI;mode.innerText=vsAI?"VS AI":"2 Players";}
+
+function setBet(){
+let amount=Number(prompt("Enter bet (max Rp5000)"));
+if(amount>5000) amount=5000;
+if(amount>coins) return alert("Not enough coins!");
+bet=amount;
+refreshUI();
+}
+
+function newGame(){
+board=[7,7,7,7,7,7,7,0,7,7,7,7,7,7,7,0];
+playerTurn=1;
+drawBoard(); updateStores(); updateTurn();
+}
+
+function drawBoard(){
+topRow.innerHTML=""; bottomRow.innerHTML="";
+for(let i=14;i>=8;i--) createHole(i,topRow);
+for(let i=0;i<=6;i++) createHole(i,bottomRow);
+}
+
+function createHole(index,row){
+let hole=document.createElement("div");
+hole.className="hole";
+hole.onclick=()=>move(index);
+
+let stonesDiv = document.createElement("div");
+stonesDiv.className = "stones";
+
+// only draw stones if there are stones
+for(let i=0;i<board[index];i++){
+    let s=document.createElement("span");
+    s.innerText="⚫";
+    stonesDiv.appendChild(s);
+}
+hole.appendChild(stonesDiv);
+row.appendChild(hole);
+}
+function updateStores(){
+
+// clear stores
+store1.innerHTML="";
+store2.innerHTML="";
+
+// house emoji on TOP of oval
+let h1=document.createElement("div");
+h1.className="storeTop";
+h1.innerText="🏠";
+
+let h2=document.createElement("div");
+h2.className="storeTop";
+h2.innerText="🏠";
+
+store1.appendChild(h1);
+store2.appendChild(h2);
+
+// packed stones container
+let s1=document.createElement("div");
+let s2=document.createElement("div");
+s1.className="storeStones";
+s2.className="storeStones";
+
+// create SMALL stones
+for(let i=0;i<board[7];i++){
+let stone=document.createElement("span");
+stone.innerText="⚫";
+s1.appendChild(stone);
+}
+
+for(let i=0;i<board[15];i++){
+let stone=document.createElement("span");
+stone.innerText="⚫";
+s2.appendChild(stone);
+}
+
+store1.appendChild(s1);
+store2.appendChild(s2);
+}
+function updateTurn(){turnText.innerText=playerTurn==1?"Player 1":"Player 2";}
+
+function checkWin(){
+let p1=board.slice(0,7).reduce((a,b)=>a+b,0);
+let p2=board.slice(8,15).reduce((a,b)=>a+b,0);
+if(p1==0||p2==0){
+let winner=board[7]>board[15]?1:2;
+endGame(winner);
+}
+}
+function celebrateWin(){
+const emojis=["🎉","✨","🥳","💖","🌟","🎊"];
+
+for(let i=0;i<25;i++){
+    let e=document.createElement("div");
+    e.className="celebrate";
+    e.innerText=emojis[Math.floor(Math.random()*emojis.length)];
+
+    // random horizontal start position
+    e.style.left=Math.random()*100+"vw";
+    e.style.animationDelay=Math.random()*0.5+"s";
+    e.style.fontSize=(24+Math.random()*20)+"px";
+
+    document.body.appendChild(e);
+
+    // remove after animation
+    setTimeout(()=>e.remove(),2600);
+}
+}
+function endGame(winner){
+if(winner==1){
+coins+=bet*2; level++;
+leaderboard.push({lvl:level,coins});
+celebrateWin();
+setTimeout(()=>{
+alert("🎉 You WIN! +Coins & Level Up!");
+},300);
+}else{
+coins-=bet;
+alert("💀 You lost!");
+}
+leaderboard.sort((a,b)=>b.lvl-a.lvl);
+leaderboard=leaderboard.slice(0,5);
+save(); refreshUI();
+}
+
+function move(i){
+if(playerTurn==1 && i>6) return;
+if(playerTurn==2 && i<8) return;
+if(board[i]==0) return;
+
+let stones=board[i]; board[i]=0;
+while(stones>0){ i=(i+1)%16; board[i]++; stones--; }
+
+playerTurn=playerTurn==1?2:1;
+drawBoard(); updateStores(); updateTurn();
+checkWin();
+
+if(vsAI && playerTurn==2) setTimeout(aiMove,600);
+}
+
+function aiMove(){
+let c=[8,9,10,11,12,13,14].filter(i=>board[i]>0);
+move(c[Math.floor(Math.random()*c.length)]);
+}
+
+function showPopup(text){popup.style.display="block"; popup.innerHTML=text+"<br><br><button onclick='popup.style.display=`none`'>Close</button>";}
+
+function showHow(){
+showPopup(`
+<h3>📖 How To Play</h3>
+Welcome to Congklak Deluxe! 🌸<br><br>
+
+Pick one of your holes and scatter the stones one by one into the next holes in a clockwise loop. 🔄<br><br>
+
+Your goal? Collect as many stones as possible in your big house 🏠 at the end of the board.<br><br>
+
+The player with the MOST stones in their house when the game ends wins the match! 🎉<br><br>
+
+Simple to learn… tricky to master. Good luck! 💖
+`);
+}
+function showTips(){
+showPopup(`
+<h3>🧠 Strategy Guide</h3>
+
+✨ Start from the rightmost holes to control the flow of stones.<br><br>
+
+🎯 Try to land your LAST stone in your own house to gain momentum.<br><br>
+
+🪤 Empty your opponent’s side slowly to limit their moves.<br><br>
+
+♟️ Think ahead! One smart move now can win the game later.<br><br>
+
+Play smart. Play patient. Become a Congklak master 👑
+`);
+}
+
+function showBoard(){
+
+let txt = `<h3>🌍 Global Leaderboard</h3><br>
+
+🥇 #1 game66forever — Level 12516 🐉<br><br>
+🥈 #2 zerolover — Level 12503 💀<br><br>
+🥉 #3 getosuguru — Level 11289 🌀<br><br>
+#4 rayofsunshine — Level 10987 ☀️<br><br>
+#5 blackdeath — Level 9658 🖤<br><br>
+#6 emolover — Level 8125 🎧<br><br>
+#7 heatherlight — Level 6294 🌸<br><br>
+#8 cloudnine — Level 6009 ☁️<br><br>
+#9 c00lkid — Level 5575 😎<br><br>
+#10 wildflower — Level 5272 🌼<br><br>
+
+✨ Keep playing to reach the Top 10!`;
+
+showPopup(txt);
+}
+
+newGame();
+function donate(){
+alert("Thank you for supporting FundGame! 💖 (Donation feature coming soon)");
+}
+
+function showHelp(){
+showPopup(`
+<h3>Help Center</h3>
+If the game freezes: <br>
+• Press Refresh Game<br>
+• Start a New Match<br>
+• Try switching mode<br>
+Happy playing! 🎉
+`);
+}
+
+function refreshGame(){
+location.reload();
+}
+function resetProgress(){
+if(confirm("Reset ALL progress?")){
+    localStorage.clear();
+    location.reload();
+}
+}
+
+</script>
+</body>
+</html>
